@@ -128,12 +128,41 @@ class Abbreviate(object):
 
         return read_tag
 
+    def abbreviate_bibs(self):
+        """Search through abbreviations database and replace all names with abbreviations"""
+
+        #SED template for find and replace
+        sed_temp = """sed -i '' 's/["{]%s["}]/%s/g' %s"""
+
+        #open the database
+        tree = ET.parse(self.abbrev_db)
+        #TODO:check if parse successful, handle errors
+        #get root element
+        root = tree.getroot()
+        #find the journals element
+        journals = root.find('journals')
+        #TODO:handle not found exception
+        #progress counter
+        i_progress = 0
+        for child in journals:
+            #Retrieve name and abbreviation
+            name = child.get('name')
+            abb = child.get('abbreviation')
+            #Find and replace
+            os.system(sed_temp%(name,abb,self.bib_file))
+            #TODO: more pythonic way to do this, i.e. not sed
+            #progress
+            if (i_progress+1)%100 == 0:
+                print("Processing abbreviation %d"%i_progress)
+            i_progress += 1
+
 
 def main():
     #instantiate class and run
     #test
-    abbreviator = Abbreviate(abbrev_db='/Users/willbarnes/Desktop/test_db.xml')
+    abbreviator = Abbreviate()
     abbreviator.check_db()
+    abbreviator.abbreviate_bibs()
 
 if __name__=='__main__':
     main()
