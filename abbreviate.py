@@ -17,7 +17,7 @@ import xml.dom.minidom as xdm
 
 class Abbreviate(object):
     """Class for scraping ADS journal abbreviations and replacing in .bib file"""
-    def __init__(self,bib_file=None, abbrev_db=None, ads_abbrev_url=None):
+    def __init__(self,bib_file=None, abbrev_db=None, ads_abbrev_url=None, extra_abbrev_db=None):
         #default references file
         if not bib_file:
             self.bib_file = os.path.join(os.environ['HOME'],'Library/texmf/bibtex/bib/references.bib')
@@ -33,6 +33,8 @@ class Abbreviate(object):
             self.ads_abbrev_url = 'http://adsabs.harvard.edu/abs_doc/refereed.html'
         else:
             self.ads_abbrev_url = ads_abbrev_url
+        #extra db file (those not on webpage)
+        self.extra_abbrev_db = extra_abbrev_db
 
     def check_db(self):
         """Check existence of database. Build it if it does not exist"""
@@ -77,6 +79,9 @@ class Abbreviate(object):
                 j_count += 1
             else:
                 pass
+
+        #append supplementary abbreviations
+        self._append_extras(journals)
 
         #record number of records
         element = ET.SubElement(root,'num_journals')
@@ -128,6 +133,29 @@ class Abbreviate(object):
 
         return read_tag
 
+
+    def _append_extras(self,journals_element):
+        """Append extra abbreviations if we have them"""
+        if not self.extra_abbrev_db:
+            print("No extra abbreviations found.")
+            return
+
+        #parse XML
+        tree = ET.parse(self.extra_abbrev_db)
+        #TODO:check if parse successful, handle errors
+        #get root element
+        root = tree.getroot()
+        #find the journals element
+        extra_journals = root.find('journals')
+        #iterate over abbreviations
+        for child in extra_journals:
+            #create journal element
+            element = ET.SubElement(journals_element,'journal')
+            #feed abbreviation and name to XML tree
+            element.set('abbreviation',child.get('abbreviation'))
+            element.set('name',child.get('name'))
+
+
     def abbreviate_bibs(self):
         """Search through abbreviations database and replace all names with abbreviations"""
 
@@ -146,21 +174,21 @@ class Abbreviate(object):
         i_progress = 0
         for child in journals:
             #Retrieve name and abbreviation
-            name = child.get('name')
-            abb = child.get('abbreviation')
+            name = child.get('name').replace('&','\\\\\&')
+            abb = '{' + child.get('abbreviation').replace('&','\\\\\&') +'}'
             #Find and replace
             os.system(sed_temp%(name,abb,self.bib_file))
             #TODO: more pythonic way to do this, i.e. not sed
             #progress
             if (i_progress+1)%100 == 0:
-                print("Processing abbreviation %d"%i_progress)
+                print("Processing abbreviation %d"%(i_progress+1))
             i_progress += 1
 
 
 def main():
     #instantiate class and run
     #test
-    abbreviator = Abbreviate()
+    abbreviator = Abbreviate(bib_file=os.path.join(os.environ['HOME'],'Library/texmf/bibtex/bib/references.bib'), abbrev_db=os.path.join(os.environ['HOME'],'Library/texmf/bibtex/abbrev.db.xml'), extra_abbrev_db=os.path.join(os.environ['HOME'],'Library/texmf/bibtex/supplementary_abbrev.db.xml'))
     abbreviator.check_db()
     abbreviator.abbreviate_bibs()
 
